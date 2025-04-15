@@ -55,4 +55,4 @@ jobs:
       - name: 🛠️ Build and analyze with SonarQube
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=nexaplaform_mic-template
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=nexaplaform_$(basename "${{ github.repository }}")
