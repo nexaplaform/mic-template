@@ -32,7 +32,7 @@ jobs:
               <server>
                 <id>github</id>
                 <username>github</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
+                <password>${{ secrets.GH_PAT }}</password>
               </server>
             </servers>
           </settings>
