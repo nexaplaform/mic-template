@@ -12,7 +12,6 @@
 	<repositories>
 		<repository>
 			<id>github</id>
-			<name>GitHub Packages</name>
 			<url>https://maven.pkg.github.com/nexaplaform/mic-core</url>
 		</repository>
 	</repositories>
