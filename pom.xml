@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>com.nexaplatform</groupId>
 		<artifactId>mic-core</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>0.0.2-SNAPSHOT</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 
@@ -37,6 +37,7 @@
 			<url>https://maven.pkg.github.com/nexaplatform</url>
 		</repository>
 	</repositories>
+
 
 
 	<dependencies>
