@@ -1,4 +1,4 @@
-name: Publish Release - main
+name: Generate release version
 
 on:
   push:
@@ -14,18 +14,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
+      - name: 🔄 Checkout código
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Configurar Java
+      - name: ☕ Configurar Java
         uses: actions/setup-java@v3
         with:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Crear settings.xml para Maven
+      - name: ⚙️ Crear settings.xml para Maven
         run: |
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml <<EOF
@@ -40,7 +40,7 @@ jobs:
           </settings>
           EOF
 
-      - name: Leer versión actual
+      - name: 📖 Leer versión actual
         id: read_version
         run: |
           VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
@@ -48,7 +48,7 @@ jobs:
           echo "RELEASE_VERSION=$VERSION_NO_SNAPSHOT" >> $GITHUB_ENV
           echo "🔖 Versión base: $VERSION → limpiada a: $VERSION_NO_SNAPSHOT"
 
-      - name: Actualizar pom.xml a versión release (sin -SNAPSHOT)
+      - name: 📝 Actualizar pom.xml a versión release (sin -SNAPSHOT)
         run: |
           sed -i "s|<revision>.*</revision>|<revision>${{ env.RELEASE_VERSION }}</revision>|" pom.xml
           git config user.name "github-actions[bot]"
@@ -56,14 +56,14 @@ jobs:
           git commit -am "chore: prepare release v${{ env.RELEASE_VERSION }}"
           git push origin main
 
-      - name: Publicar release
+      - name: 🚀 Publicar release
         run: |
           echo "🚀 Publicando release ${{ env.RELEASE_VERSION }}"
           mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }} -s ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Crear tag si no existe
+      - name: 🏷️ Crear tag si no existe
         run: |
           git fetch --tags
           if git rev-parse "v${{ env.RELEASE_VERSION }}" >/dev/null 2>&1; then
@@ -76,7 +76,7 @@ jobs:
             git push origin "v${{ env.RELEASE_VERSION }}"
           fi
 
-      - name: Crear PR hacia develop con nueva SNAPSHOT
+      - name: 🔁 Crear PR hacia develop con nueva SNAPSHOT
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
