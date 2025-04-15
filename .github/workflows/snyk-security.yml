@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    branches: ["main", "stage", "develop"]
+    branches: ["main", "develop"]
 
 permissions:
   contents: read
@@ -37,4 +37,3 @@ jobs:
         # Use || true to not fail the pipeline
       - name: Snyk Code test
         run: snyk code test --sarif > snyk-code.sarif || true
-

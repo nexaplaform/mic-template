@@ -1,0 +1,101 @@
+name: Publish Release - main
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Crear settings.xml para Maven
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>github</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      - name: Leer versión actual
+        id: read_version
+        run: |
+          VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
+          VERSION_NO_SNAPSHOT="${VERSION%-SNAPSHOT}"
+          echo "RELEASE_VERSION=$VERSION_NO_SNAPSHOT" >> $GITHUB_ENV
+          echo "🔖 Versión base: $VERSION → limpiada a: $VERSION_NO_SNAPSHOT"
+
+      - name: Actualizar pom.xml a versión release (sin -SNAPSHOT)
+        run: |
+          sed -i "s|<revision>.*</revision>|<revision>${{ env.RELEASE_VERSION }}</revision>|" pom.xml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: prepare release v${{ env.RELEASE_VERSION }}"
+          git push origin main
+
+      - name: Publicar release
+        run: |
+          echo "🚀 Publicando release ${{ env.RELEASE_VERSION }}"
+          mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }} -s ~/.m2/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Crear tag si no existe
+        run: |
+          git fetch --tags
+          if git rev-parse "v${{ env.RELEASE_VERSION }}" >/dev/null 2>&1; then
+            echo "🏷️ Tag v${{ env.RELEASE_VERSION }} ya existe."
+          else
+            echo "🏷️ Creando tag v${{ env.RELEASE_VERSION }}"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions@github.com"
+            git tag "v${{ env.RELEASE_VERSION }}"
+            git push origin "v${{ env.RELEASE_VERSION }}"
+          fi
+
+      - name: Crear PR hacia develop con nueva SNAPSHOT
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ env.RELEASE_VERSION }}"
+          PATCH=$((PATCH + 1))
+          NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+
+          echo "🔁 Próxima versión SNAPSHOT: $NEXT_VERSION"
+
+          git fetch origin main
+          git checkout -b sync-develop origin/main
+
+          sed -i "s|<revision>.*</revision>|<revision>$NEXT_VERSION</revision>|" pom.xml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: bump version to $NEXT_VERSION [sync from release]"
+          git push -f origin sync-develop
+
+          gh pr create -B develop -H sync-develop \
+            --title "chore: bump version to $NEXT_VERSION" \
+            --body "🔁 Sincronización automática desde release v${{ env.RELEASE_VERSION }} con la próxima versión \`$NEXT_VERSION\` para continuar en develop."
