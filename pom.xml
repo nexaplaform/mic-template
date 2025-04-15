@@ -10,11 +10,12 @@
 	</parent>
 	<groupId>com.nexaplatform</groupId>
 	<artifactId>mic-template</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>${revision}</version>
 	<name>mic-template</name>
 	<description>Template for creation of microservices</description>
 
 	<properties>
+		<revision>0.0.1-SNAPSHOT</revision>
 		<java.version>21</java.version>
 		<sonar.organization>nexaplaform</sonar.organization>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
