@@ -31,7 +31,7 @@ jobs:
             <servers>
               <server>
                 <id>github</id>
-                <username>github</username>
+                <username>nexaplaform</username>
                 <password>${{ secrets.GH_PAT }}</password>
               </server>
             </servers>
