@@ -93,7 +93,7 @@ jobs:
           MESSAGE+="📅 **Fecha:** $CURRENT_DATE\n\n"
 
           if [[ "${{ env.BASE_REF }}" == "main" ]]; then
-            MESSAGE+="🚀 **RELEASE :**
+            MESSAGE+="🚀 **RELEASE :**\n"
             MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
           else
             MESSAGE+="🔧 **Próxima versión SNAPSHOT:**\n"
