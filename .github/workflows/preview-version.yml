@@ -12,7 +12,6 @@ permissions:
 jobs:
   preview-version:
     runs-on: ubuntu-latest
-
     steps:
       - name: 🔄 Checkout código
         uses: actions/checkout@v3
@@ -20,88 +19,77 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: 📖 Obtener versión actual
-        id: read_version
+      - name: 📖 Obtener versión del artefacto (no del parent)
+        id: get_version
         run: |
-          VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "🔍 Versión actual en pom.xml: $VERSION"
+          # Busca la versión específica del artefacto (mic-template)
+          VERSION=$(awk '/<artifactId>mic-template<\/artifactId>/{getline; if(/<version>/){print $0}}' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
+          
+          # Si no encuentra en <version>, busca en <revision>
+          if [ -z "$VERSION" ]; then
+            VERSION=$(awk '/<artifactId>mic-template<\/artifactId>/{getline; if(/<revision>/){print $0}}' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
+          fi
+          
+          echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BASE_REF=${{ github.base_ref }}" >> $GITHUB_ENV
+          echo "🔍 Versión actual de mic-template: $VERSION"
 
-      - name: 🏷️ Verificar si existe etiqueta de versión
-        id: detect_label
+      - name: 🏷️ Obtener etiquetas PR
+        id: get_labels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
-          echo "LABEL=$LABEL" >> $GITHUB_ENV
-          echo "TARGET_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+          LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature|release' | head -n 1 || true)
+          echo "PR_LABEL=$LABEL" >> $GITHUB_ENV
+          echo "🔖 Etiqueta detectada: ${LABEL:-ninguna}"
 
       - name: 🧮 Calcular versión
-        id: calc_version
+        id: calculate_version
         run: |
-          BASE="${{ env.VERSION }}"
-          BASE_CLEAN="${BASE%-SNAPSHOT}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CLEAN"
-          LABEL="${{ env.LABEL }}"
-          TARGET_BRANCH="${{ env.TARGET_BRANCH }}"
+          CURRENT_VERSION="${{ env.CURRENT_VERSION }}"
+          CLEAN_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CLEAN_VERSION"
+          PR_LABEL="${{ env.PR_LABEL }}"
+          TARGET_BRANCH="${{ env.BASE_REF }}"
 
-          if [[ "$LABEL" == "feature" ]]; then
+          # Lógica de incremento de versión
+          if [[ "$PR_LABEL" == "feature" ]]; then
             MINOR=$((MINOR + 1))
             PATCH=0
-          elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
+          elif [[ "$PR_LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
             PATCH=$((PATCH + 1))
           fi
 
+          # Determinar versión a mostrar
           if [[ "$TARGET_BRANCH" == "main" ]]; then
-            # Para main: mostrar versión release
-            if [[ -z "$LABEL" ]]; then
-              DISPLAY_VERSION="${BASE%-SNAPSHOT}"
-            else
-              DISPLAY_VERSION="$MAJOR.$MINOR.$PATCH"
-            fi
-            VERSION_TYPE="Release"
+            FINAL_VERSION="$MAJOR.$MINOR.$PATCH"
+            VERSION_TYPE="RELEASE"
           else
-            # Para develop: mostrar versión SNAPSHOT
-            if [[ -z "$LABEL" ]]; then
-              DISPLAY_VERSION="$BASE"
-            else
-              DISPLAY_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
-            fi
+            FINAL_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
             VERSION_TYPE="SNAPSHOT"
           fi
 
-          echo "DISPLAY_VERSION=$DISPLAY_VERSION" >> $GITHUB_ENV
+          echo "FINAL_VERSION=$FINAL_VERSION" >> $GITHUB_ENV
           echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
+          echo "🎯 Versión calculada para $TARGET_BRANCH: $FINAL_VERSION ($VERSION_TYPE)"
 
-          echo ""
-          echo "🔮 Versión calculada para $TARGET_BRANCH:"
-          echo "   Versión actual: $BASE"
-          echo "   Etiqueta:       ${LABEL:-ninguna}"
-          echo "   Nueva versión:  $DISPLAY_VERSION ($VERSION_TYPE)"
-          echo ""
-
-      - name: 💬 Comentar en la PR
+      - name: 💬 Publicar comentario en PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
-          DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
-          TARGET_BRANCH="${{ env.TARGET_BRANCH }}"
-
-          echo "👤 Autor: $AUTHOR" > comment.txt
-          echo "📅 Fecha: $DATE" >> comment.txt
-          echo "" >> comment.txt
-
-          if [[ "$TARGET_BRANCH" == "main" ]]; then
-            echo "🚀 Versión de RELEASE que se generará:" >> comment.txt
-            echo "   \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
-            echo "" >> comment.txt
-            echo "ℹ️ Esta versión se usará para la publicación oficial." >> comment.txt
+          MESSAGE="📅 **Fecha:** $(date -u +"%Y/%m/%d %H:%M UTC")\n\n"
+          
+          if [[ "${{ env.BASE_REF }}" == "main" ]]; then
+            MESSAGE+="🚀 **Versión de RELEASE que se generará:**\n"
+            MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
+            MESSAGE+="ℹ️ Esta será la versión oficial publicada en GitHub Packages."
           else
-            echo "🔧 Próxima versión SNAPSHOT:" >> comment.txt
-            echo "   \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
-            echo "" >> comment.txt
-            echo "ℹ️ Esta versión se usará durante el desarrollo." >> comment.txt
+            MESSAGE+="🔧 **Próxima versión SNAPSHOT:**\n"
+            MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
+            MESSAGE+="ℹ️ Esta versión se usará durante el desarrollo continuo."
           fi
 
-          gh pr comment ${{ github.event.pull_request.number }} --body-file comment.txt
+          echo "📝 Mensaje a publicar:"
+          echo -e "$MESSAGE"
+
+          gh pr comment ${{ github.event.pull_request.number}} --body "$(echo -e "$MESSAGE")"
