@@ -24,11 +24,9 @@ jobs:
         run: |
           ARTIFACT_ID=$(grep -m1 '<artifactId>' pom.xml | sed -E 's/.*<artifactId>(.*)<\/artifactId>.*/\1/')
           VERSION=$(grep -m1 '<version>' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
-          
           echo "ARTIFACT_ID=$ARTIFACT_ID" >> $GITHUB_ENV
           echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
           echo "RELEASE_VERSION=${VERSION%-SNAPSHOT}" >> $GITHUB_ENV
-          
           echo "🔍 Artifact ID: $ARTIFACT_ID"
           echo "🔍 Versión actual: $VERSION"
           echo "🔖 Versión release: ${VERSION%-SNAPSHOT}"
@@ -45,7 +43,6 @@ jobs:
       - name: 📝 Actualizar a versión release
         run: |
           sed -i "s|<version>${{ env.CURRENT_VERSION }}</version>|<version>${{ env.RELEASE_VERSION }}</version>|" pom.xml
-          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
           git commit -am "chore: [release] ${{ env.ARTIFACT_ID }} v${{ env.RELEASE_VERSION }} [skip ci]"
@@ -67,7 +64,6 @@ jobs:
         run: |
           git checkout -b "release/${{ env.RELEASE_VERSION }}"
           sed -i "s|<version>${{ env.RELEASE_VERSION }}</version>|<version>${{ env.NEXT_VERSION }}</version>|" pom.xml
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
           git commit -am "chore: [snapshot] ${{ env.ARTIFACT_ID }} ${{ env.NEXT_VERSION }} [skip ci]"
@@ -77,7 +73,4 @@ jobs:
             --base develop \
             --head "release/${{ env.RELEASE_VERSION }}" \
             --title "chore: Bump ${{ env.ARTIFACT_ID }} to ${{ env.NEXT_VERSION }}" \
-            --body "Actualización automática post-release:
-            -- Artifact: ${{ env.ARTIFACT_ID }}
-            -- Versión release: ${{ env.RELEASE_VERSION }}
-            -- Nueva versión SNAPSHOT: ${{ env.NEXT_VERSION }}"
+            --body "Actualización automática post-release:\n\n- Artifact: ${{ env.ARTIFACT_ID }}\n- Versión release: ${{ env.RELEASE_VERSION }}\n- Nueva versión SNAPSHOT: ${{ env.NEXT_VERSION }}"
