@@ -142,5 +142,5 @@ jobs:
           gh pr create \
             --base develop \
             --head "release/${{ env.RELEASE_VERSION }}" \
-            --title "chore: Bump ${{ env.ARTIFACT_ID }} to ${{ env.NEXT_VERSION }}" \
+            --title "Sync: Bump ${{ env.ARTIFACT_ID }} to ${{ env.NEXT_VERSION }}" \
             --body "Actualización automática post-release:\n\n- Artifact: ${{ env.ARTIFACT_ID }}\n- Versión release: ${{ env.RELEASE_VERSION }}\n- Nueva versión SNAPSHOT: ${{ env.NEXT_VERSION }}"
