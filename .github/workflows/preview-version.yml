@@ -5,6 +5,10 @@ on:
     branches: [ "main", "develop" ]
     types: [opened, edited, labeled, unlabeled, synchronize]
 
+permissions:
+  contents: read
+  pull-requests: write  # Permiso esencial para comentar en PRs
+
 jobs:
   calculate-version:
     runs-on: ubuntu-latest
@@ -24,7 +28,7 @@ jobs:
       - name: 🏷️ Detect PR labels
         id: labels
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Usa el token automático
         run: |
           LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'feature|bugfix|hotfix|release' | head -n 1 || true)
           echo "PR_LABEL=${LABEL}" >> $GITHUB_ENV
@@ -60,19 +64,20 @@ jobs:
 
       - name: 💬 Post version comment
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Asegúrate de usar este token
         run: |
-          COMMENT="## 📦 VERSION ${VERSION_TYPE}\n\n"
-          COMMENT+="- **Artifact:** ${GITHUB_REPOSITORY#*/}\n"
-          COMMENT+="- **Versión calculada:** ${NEW_VERSION}\n"
-          COMMENT+="- **Versión anterior:** ${CURRENT_VERSION}\n"
-          COMMENT+="- **Etiqueta:** ${PR_LABEL:-Ninguna}\n"
-          COMMENT+="- **Rama destino:** ${BASE_REF}\n\n"
-          
-          if [[ "$VERSION_TYPE" == "RELEASE" ]]; then
-            COMMENT+="_Esta versión se publicará oficialmente_"
-          else
-            COMMENT+="_Versión para desarrollo continuo_"
-          fi
+          # Formatear mensaje sin usar \n (usar literales multilínea)
+          COMMENT=$(cat <<EOF
+          ## 📦 VERSION ${VERSION_TYPE}
 
-          gh pr comment ${{ github.event.pull_request.number}} --body "${COMMENT}"
+          - **Artifact:** ${GITHUB_REPOSITORY#*/}
+          - **Versión calculada:** ${NEW_VERSION}
+          - **Versión anterior:** ${CURRENT_VERSION}
+          - **Etiqueta:** ${PR_LABEL:-Ninguna}
+          - **Rama destino:** ${BASE_REF}
+
+          $([ "$VERSION_TYPE" == "RELEASE" ] && echo "_Esta versión se publicará oficialmente_" || echo "_Versión para desarrollo continuo_")
+          EOF
+          )
+
+          gh pr comment ${{ github.event.pull_request.number}} --body "$COMMENT"
