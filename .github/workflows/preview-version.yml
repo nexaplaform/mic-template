@@ -34,75 +34,74 @@ jobs:
         run: |
           LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature' | head -n 1 || true)
           echo "LABEL=$LABEL" >> $GITHUB_ENV
+          echo "TARGET_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
 
-          if [ -z "$LABEL" ]; then
-            echo "ℹ️ No se detectó ninguna etiqueta relevante. Se usará la versión actual del pom.xml."
-          else
-            echo "🔖 Etiqueta detectada: $LABEL"
-          fi
-
-      - name: 🧮 Calcular próxima versión
+      - name: 🧮 Calcular versión
         id: calc_version
         run: |
           BASE="${{ env.VERSION }}"
           BASE_CLEAN="${BASE%-SNAPSHOT}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CLEAN"
           LABEL="${{ env.LABEL }}"
-          TARGET_BRANCH="${{ github.base_ref }}"
+          TARGET_BRANCH="${{ env.TARGET_BRANCH }}"
 
           if [[ "$LABEL" == "feature" ]]; then
             MINOR=$((MINOR + 1))
-            PATCH=0  # Reset patch para nuevas features
+            PATCH=0
           elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
             PATCH=$((PATCH + 1))
           fi
 
-          if [[ -z "$LABEL" ]]; then
-            NEXT_SNAPSHOT="$BASE"
-            NEXT_RELEASE="$BASE_CLEAN"
-          else
-            NEXT_SNAPSHOT="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
-            NEXT_RELEASE="$MAJOR.$MINOR.$PATCH"
-          fi
-
-          # Determinar qué versión mostrar según la rama destino
-          if [[ "$TARGET_BRANCH" == "develop" ]]; then
-            DISPLAY_VERSION="$NEXT_SNAPSHOT"
-            VERSION_TYPE="SNAPSHOT"
-          else
-            DISPLAY_VERSION="$NEXT_RELEASE"
+          if [[ "$TARGET_BRANCH" == "main" ]]; then
+            # Para main: mostrar versión release
+            if [[ -z "$LABEL" ]]; then
+              DISPLAY_VERSION="${BASE%-SNAPSHOT}"
+            else
+              DISPLAY_VERSION="$MAJOR.$MINOR.$PATCH"
+            fi
             VERSION_TYPE="Release"
+          else
+            # Para develop: mostrar versión SNAPSHOT
+            if [[ -z "$LABEL" ]]; then
+              DISPLAY_VERSION="$BASE"
+            else
+              DISPLAY_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+            fi
+            VERSION_TYPE="SNAPSHOT"
           fi
 
-          echo "NEXT_SNAPSHOT=$NEXT_SNAPSHOT" >> $GITHUB_ENV
-          echo "NEXT_RELEASE=$NEXT_RELEASE" >> $GITHUB_ENV
           echo "DISPLAY_VERSION=$DISPLAY_VERSION" >> $GITHUB_ENV
           echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
 
           echo ""
-          echo "🔮✨ Previsualización de versión para rama $TARGET_BRANCH:"
-          echo "   📦 Versión actual:  $BASE"
-          echo "   🔖 Etiqueta:        ${LABEL:-ninguna}"
-          echo "   🚀 Próxima versión: $DISPLAY_VERSION ($VERSION_TYPE)"
+          echo "🔮 Versión calculada para $TARGET_BRANCH:"
+          echo "   Versión actual: $BASE"
+          echo "   Etiqueta:       ${LABEL:-ninguna}"
+          echo "   Nueva versión:  $DISPLAY_VERSION ($VERSION_TYPE)"
           echo ""
 
-      - name: 💬 Comentar en la PR con autor, fecha y versión
+      - name: 💬 Comentar en la PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
           DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
+          TARGET_BRANCH="${{ env.TARGET_BRANCH }}"
 
-          echo "👤 $AUTHOR" > comment.txt
-          echo "📅 $DATE" >> comment.txt
-          
-          if [[ "${{ github.base_ref }}" == "develop" ]]; then
-            echo "📦 Próxima versión SNAPSHOT si se mergea: \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
+          echo "👤 Autor: $AUTHOR" > comment.txt
+          echo "📅 Fecha: $DATE" >> comment.txt
+          echo "" >> comment.txt
+
+          if [[ "$TARGET_BRANCH" == "main" ]]; then
+            echo "🚀 Versión de RELEASE que se generará:" >> comment.txt
+            echo "   \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
+            echo "" >> comment.txt
+            echo "ℹ️ Esta versión se usará para la publicación oficial." >> comment.txt
           else
-            echo "🏷️ Versión de Release que se generará si se mergea: \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
+            echo "🔧 Próxima versión SNAPSHOT:" >> comment.txt
+            echo "   \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
+            echo "" >> comment.txt
+            echo "ℹ️ Esta versión se usará durante el desarrollo." >> comment.txt
           fi
-
-          echo "💬 Comentario generado:"
-          cat comment.txt
 
           gh pr comment ${{ github.event.pull_request.number }} --body-file comment.txt
