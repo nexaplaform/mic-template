@@ -1,4 +1,4 @@
-name: Preview Release Version
+name: Preview Version
 
 on:
   pull_request:
@@ -41,17 +41,18 @@ jobs:
             echo "🔖 Etiqueta detectada: $LABEL"
           fi
 
-      - name: 🧮 Calcular versiones (SNAPSHOT y Release)
+      - name: 🧮 Calcular próxima versión
         id: calc_version
         run: |
           BASE="${{ env.VERSION }}"
           BASE_CLEAN="${BASE%-SNAPSHOT}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CLEAN"
           LABEL="${{ env.LABEL }}"
+          TARGET_BRANCH="${{ github.base_ref }}"
 
           if [[ "$LABEL" == "feature" ]]; then
             MINOR=$((MINOR + 1))
-            PATCH=0
+            PATCH=0  # Reset patch para nuevas features
           elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
             PATCH=$((PATCH + 1))
           fi
@@ -64,18 +65,28 @@ jobs:
             NEXT_RELEASE="$MAJOR.$MINOR.$PATCH"
           fi
 
+          # Determinar qué versión mostrar según la rama destino
+          if [[ "$TARGET_BRANCH" == "develop" ]]; then
+            DISPLAY_VERSION="$NEXT_SNAPSHOT"
+            VERSION_TYPE="SNAPSHOT"
+          else
+            DISPLAY_VERSION="$NEXT_RELEASE"
+            VERSION_TYPE="Release"
+          fi
+
           echo "NEXT_SNAPSHOT=$NEXT_SNAPSHOT" >> $GITHUB_ENV
           echo "NEXT_RELEASE=$NEXT_RELEASE" >> $GITHUB_ENV
+          echo "DISPLAY_VERSION=$DISPLAY_VERSION" >> $GITHUB_ENV
+          echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
 
           echo ""
-          echo "🔮✨ Previsualización de versiones que se aplicarían si se mergea:"
-          echo "   📦 Versión actual:       $BASE"
-          echo "   🔖 Etiqueta:             ${LABEL:-ninguna}"
-          echo "   🚀 Próxima versión SNAPSHOT: $NEXT_SNAPSHOT"
-          echo "   🏷️  Versión de Release:      $NEXT_RELEASE"
+          echo "🔮✨ Previsualización de versión para rama $TARGET_BRANCH:"
+          echo "   📦 Versión actual:  $BASE"
+          echo "   🔖 Etiqueta:        ${LABEL:-ninguna}"
+          echo "   🚀 Próxima versión: $DISPLAY_VERSION ($VERSION_TYPE)"
           echo ""
 
-      - name: 💬 Comentar en la PR con autor, fecha y versiones
+      - name: 💬 Comentar en la PR con autor, fecha y versión
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -84,12 +95,12 @@ jobs:
 
           echo "👤 $AUTHOR" > comment.txt
           echo "📅 $DATE" >> comment.txt
-          echo "" >> comment.txt
-          echo "📦 Versiones que se generarían al mergear:" >> comment.txt
-          echo "- SNAPSHOT: \`${{ env.NEXT_SNAPSHOT }}\`" >> comment.txt
-          echo "- Release:  \`${{ env.NEXT_RELEASE }}\`" >> comment.txt
-          echo "" >> comment.txt
-          echo "ℹ️ La versión SNAPSHOT se usará durante desarrollo y la Release para la publicación final." >> comment.txt
+          
+          if [[ "${{ github.base_ref }}" == "develop" ]]; then
+            echo "📦 Próxima versión SNAPSHOT si se mergea: \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
+          else
+            echo "🏷️ Versión de Release que se generará si se mergea: \`${{ env.DISPLAY_VERSION }}\`" >> comment.txt
+          fi
 
           echo "💬 Comentario generado:"
           cat comment.txt
