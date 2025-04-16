@@ -22,16 +22,14 @@ jobs:
       - name: 📖 Extraer metadata del proyecto
         id: metadata
         run: |
-          # Extraer ARTIFACT_ID (mic-template)
           ARTIFACT_ID=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='artifactId']/text()" pom.xml)
-          echo "ARTIFACT_ID=$ARTIFACT_ID" >> $GITHUB_ENV
-          
-          # Extraer VERSION (0.0.1-SNAPSHOT)
           VERSION=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" pom.xml)
+          
+          echo "ARTIFACT_ID=$ARTIFACT_ID" >> $GITHUB_ENV
           echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
           echo "RELEASE_VERSION=${VERSION%-SNAPSHOT}" >> $GITHUB_ENV
           
-          echo "🔍 Artifact ID: $ARTIFACT_ID"
+          echo "🔍 Artifact: $ARTIFACT_ID"
           echo "🔍 Versión actual: $VERSION"
           echo "🔖 Versión release: ${VERSION%-SNAPSHOT}"
 
@@ -39,14 +37,12 @@ jobs:
         id: next_version
         run: |
           IFS='.' read -r MAJOR MINOR PATCH <<< "${{ env.RELEASE_VERSION }}"
-          NEXT_PATCH=$((PATCH + 1))
-          NEXT_VERSION="$MAJOR.$MINOR.$NEXT_PATCH-SNAPSHOT"
+          NEXT_VERSION="$MAJOR.$MINOR.$((PATCH + 1))-SNAPSHOT"
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
-          echo "🔁 Próxima versión SNAPSHOT: $NEXT_VERSION"
+          echo "🔁 Próxima versión: $NEXT_VERSION"
 
       - name: 📝 Actualizar a versión release
         run: |
-          # Actualizar versión en pom.xml
           sed -i "s|<version>${{ env.CURRENT_VERSION }}</version>|<version>${{ env.RELEASE_VERSION }}</version>|" pom.xml
           
           git config user.name "github-actions[bot]"
@@ -65,15 +61,37 @@ jobs:
           git push origin "v${{ env.RELEASE_VERSION }}"
 
       - name: 🔄 Preparar próxima versión SNAPSHOT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git checkout -b "release/${{ env.RELEASE_VERSION }}"
           sed -i "s|<version>${{ env.RELEASE_VERSION }}</version>|<version>${{ env.NEXT_VERSION }}</version>|" pom.xml
-          
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions@github.com"
           git commit -am "chore: [snapshot] ${{ env.ARTIFACT_ID }} ${{ env.NEXT_VERSION }} [skip ci]"
           git push origin "release/${{ env.RELEASE_VERSION }}"
+
+          # Formato mejorado para el comentario del PR
+          PR_BODY=$(cat <<EOF
+          ## 🚀 Actualización Automática de Versión
+
+          **Detalles del cambio:**
+          - **Artifact:** \`${{ env.ARTIFACT_ID }}\`
+          - **Versión Release:** \`${{ env.RELEASE_VERSION }}\`
+          - **Nueva Versión SNAPSHOT:** \`${{ env.NEXT_VERSION }}\`
+
+          **Acciones realizadas:**
+          1. Publicada versión release en GitHub Packages
+          2. Creado tag \`v${{ env.RELEASE_VERSION }}\`
+          3. Preparada próxima versión de desarrollo
+
+          _Este PR fue generado automáticamente por el workflow de release_
+          EOF
+          )
 
           gh pr create \
             --base develop \
             --head "release/${{ env.RELEASE_VERSION }}" \
             --title "chore: Bump ${{ env.ARTIFACT_ID }} to ${{ env.NEXT_VERSION }}" \
-            --body "Actualización automática post-release:\n\n- Artifact: \`${{ env.ARTIFACT_ID }}\`\n- Versión anterior: \`${{ env.RELEASE_VERSION }}\`\n- Nueva versión: \`${{ env.NEXT_VERSION }\`"
+            --body "$PR_BODY"
