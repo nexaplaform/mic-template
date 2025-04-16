@@ -1,101 +1,78 @@
-name: Preview Version
+name: Version Calculator
 
 on:
   pull_request:
     branches: [ "main", "develop" ]
     types: [opened, edited, labeled, unlabeled, synchronize]
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
-  preview-version:
+  calculate-version:
     runs-on: ubuntu-latest
     steps:
-      - name: 🔄 Checkout código
+      - name: 🔄 Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: 📖 Extraer metadata del proyecto
-        id: project_metadata
+      - name: 📖 Extract current version
+        id: version
         run: |
-          # Extraer artifactId y versión del pom.xml
-          ARTIFACT_ID=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='artifactId']/text()" pom.xml 2>/dev/null || grep -m1 '<artifactId>' pom.xml | sed -E 's/.*<artifactId>(.*)<\/artifactId>.*/\1/')
-          VERSION=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" pom.xml 2>/dev/null || grep -m1 '<version>' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
-          
-          echo "ARTIFACT_ID=$ARTIFACT_ID" >> $GITHUB_ENV
-          echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
+          CURRENT_VERSION=$(grep -m1 '<version>' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
+          echo "CURRENT_VERSION=${CURRENT_VERSION}" >> $GITHUB_ENV
           echo "BASE_REF=${{ github.base_ref }}" >> $GITHUB_ENV
-          echo "🔍 Artifact: $ARTIFACT_ID"
-          echo "🔍 Versión: $VERSION"
 
-      - name: 🏷️ Obtener etiquetas PR
-        id: get_labels
+      - name: 🏷️ Detect PR labels
+        id: labels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'bugfix|fix|hotfix|feature|release' | head -n 1 || true)
-          echo "PR_LABEL=$LABEL" >> $GITHUB_ENV
-          echo "🔖 Etiqueta: ${LABEL:-ninguna}"
+          LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'feature|bugfix|hotfix|release' | head -n 1 || true)
+          echo "PR_LABEL=${LABEL}" >> $GITHUB_ENV
 
-      - name: 🧮 Calcular versión
-        id: calculate_version
+      - name: 🧮 Calculate new version
+        id: calculate
         run: |
-          # Parsear y limpiar versión
-          CLEAN_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "${CLEAN_VERSION:-0.0.0}"
-
-          # Incrementar versión según etiqueta
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT_VERSION%-SNAPSHOT}"
+          
           case "$PR_LABEL" in
-            "feature") 
-              MINOR=$((MINOR + 1))
-              PATCH=0
+            "feature")
+              NEW_MINOR=$((MINOR + 1))
+              NEW_VERSION="$MAJOR.$NEW_MINOR.0"
               ;;
-            "bugfix"|"fix"|"hotfix")
-              PATCH=$((PATCH + 1))
+            "bugfix"|"hotfix")
+              NEW_PATCH=$((PATCH + 1))
+              NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
               ;;
             *)
-              echo "ℹ️ Sin etiqueta de versión, manteniendo versión actual"
+              NEW_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
               ;;
           esac
 
-          # Determinar versión final
-          if [[ "$BASE_REF" == "main" ]]; then
-            FINAL_VERSION="$MAJOR.$MINOR.$PATCH"
-            VERSION_TYPE="RELEASE"
-          else
-            FINAL_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          if [[ "$BASE_REF" == "develop" ]]; then
+            NEW_VERSION="${NEW_VERSION}-SNAPSHOT"
             VERSION_TYPE="SNAPSHOT"
+          else
+            VERSION_TYPE="RELEASE"
           fi
 
-          echo "FINAL_VERSION=$FINAL_VERSION" >> $GITHUB_ENV
-          echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_ENV
-          echo "🎯 Versión calculada: $FINAL_VERSION ($VERSION_TYPE)"
+          echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+          echo "VERSION_TYPE=${VERSION_TYPE}" >> $GITHUB_ENV
 
-      - name: 💬 Publicar comentario en PR
+      - name: 💬 Post version comment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Configurar emojis y textos
+          COMMENT="## 📦 VERSION ${VERSION_TYPE}\n\n"
+          COMMENT+="- **Artifact:** ${GITHUB_REPOSITORY#*/}\n"
+          COMMENT+="- **Versión calculada:** ${NEW_VERSION}\n"
+          COMMENT+="- **Versión anterior:** ${CURRENT_VERSION}\n"
+          COMMENT+="- **Etiqueta:** ${PR_LABEL:-Ninguna}\n"
+          COMMENT+="- **Rama destino:** ${BASE_REF}\n\n"
+          
           if [[ "$VERSION_TYPE" == "RELEASE" ]]; then
-            HEADER="🚀 **VERSIÓN RELEASE**"
-            FOOTER="Esta versión se publicará oficialmente"
+            COMMENT+="_Esta versión se publicará oficialmente_"
           else
-            HEADER="🔧 **PRÓXIMA VERSIÓN SNAPSHOT**"
-            FOOTER="Versión para desarrollo continuo"
+            COMMENT+="_Versión para desarrollo continuo_"
           fi
 
-          # Construir mensaje
-          MESSAGE="$HEADER\n\n"
-          MESSAGE+="▸ **Artifact:** \`$ARTIFACT_ID\`\n"
-          MESSAGE+="▸ **Versión:** \`$FINAL_VERSION\`\n"
-          MESSAGE+="▸ **Autor:** ${{ github.actor }}\n"
-          MESSAGE+="▸ **Fecha:** $(date -u +"%Y/%m/%d %H:%M UTC")\n"
-          MESSAGE+="▸ **Etiqueta:** ${PR_LABEL:-Ninguna}\n\n"
-          MESSAGE+="_${FOOTER}_\n"
-          MESSAGE+="<sub>🤖 Generado automáticamente</sub>"
-
-          gh pr comment ${{ github.event.pull_request.number}} --body "$(echo -e "$MESSAGE")"
+          gh pr comment ${{ github.event.pull_request.number}} --body "${COMMENT}"
