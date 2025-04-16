@@ -78,6 +78,6 @@ jobs:
             --head "release/${{ env.RELEASE_VERSION }}" \
             --title "chore: Bump ${{ env.ARTIFACT_ID }} to ${{ env.NEXT_VERSION }}" \
             --body "Actualización automática post-release:
-          - Artifact: ${{ env.ARTIFACT_ID }}
-          - Versión release: ${{ env.RELEASE_VERSION }}
-          - Nueva versión SNAPSHOT: ${{ env.NEXT_VERSION }}"
+            -- Artifact: ${{ env.ARTIFACT_ID }}
+            -- Versión release: ${{ env.RELEASE_VERSION }}
+            -- Nueva versión SNAPSHOT: ${{ env.NEXT_VERSION }}"
