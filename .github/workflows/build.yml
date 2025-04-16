@@ -38,6 +38,9 @@ jobs:
           </settings>
           EOF
 
+      - name: Build y análisis Sonar
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -s ~/.m2/settings.xml
+
       - name: 📦 Cache SonarQube packages
         uses: actions/cache@v4
         with:

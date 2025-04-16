@@ -7,7 +7,7 @@
 		<groupId>com.nexaplatform</groupId>
 		<artifactId>mic-core</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
-		<relativePath/> <!-- Esto está bien -->
+		<relativePath/>
 	</parent>
 
 	<repositories>
