@@ -17,6 +17,7 @@
 		</repository>
 	</repositories>
 
+
 	<artifactId>mic-template</artifactId>
 	<version>0.0.3-SNAPSHOT</version>
 	<name>mic-template</name>
