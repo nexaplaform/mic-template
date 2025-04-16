@@ -42,7 +42,14 @@ jobs:
 
       - name: 📝 Actualizar a versión release
         run: |
-          sed -i "s|<version>${{ env.CURRENT_VERSION }}</version>|<version>${{ env.RELEASE_VERSION }}</version>|" pom.xml
+          awk -v ver="${{ env.RELEASE_VERSION }}" '
+            /<artifactId>mic-template<\/artifactId>/ { found = 1 }
+            found && /<version>/ {
+              sub(/<version>.*<\/version>/, "<version>" ver "</version>")
+              found = 0
+            }
+            { print }
+          ' pom.xml > pom.tmp && mv pom.tmp pom.xml
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
@@ -69,7 +76,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git checkout -b "release/${{ env.RELEASE_VERSION }}"
-          sed -i "s|<version>${{ env.RELEASE_VERSION }}</version>|<version>${{ env.NEXT_VERSION }}</version>|" pom.xml
+
+          awk -v ver="${{ env.NEXT_VERSION }}" '
+            /<artifactId>mic-template<\/artifactId>/ { found = 1 }
+            found && /<version>/ {
+              sub(/<version>.*<\/version>/, "<version>" ver "</version>")
+              found = 0
+            }
+            { print }
+          ' pom.xml > pom.tmp && mv pom.tmp pom.xml
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
