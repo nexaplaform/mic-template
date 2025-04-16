@@ -95,9 +95,7 @@ jobs:
           if [[ "${{ env.BASE_REF }}" == "main" ]]; then
             MESSAGE+="🚀 **RELEASE :** ${{ env.FINAL_VERSION }}\n"
           else
-            MESSAGE+="🔧 **Próxima versión SNAPSHOT:**\n"
-            MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
-            MESSAGE+="ℹ️ Esta versión se usará durante el desarrollo continuo."
+            MESSAGE+="🔧 **SNAPSHOT: ** ${{ env.FINAL_VERSION }}\n"
           fi
 
           echo "📝 Mensaje a publicar:"
