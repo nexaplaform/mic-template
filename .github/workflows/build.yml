@@ -5,6 +5,12 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: read
+  packages: write
+
 jobs:
   build:
     name: Build and analyze
