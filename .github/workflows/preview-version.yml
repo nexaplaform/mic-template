@@ -90,11 +90,10 @@ jobs:
           fi
 
           MESSAGE="👤 **Release:** $RELEASE_BY\n"
-          MESSAGE+="📅 **Fecha:** $CURRENT_DATE\n\n"
+          MESSAGE+="📅 **Fecha:** $CURRENT_DATE\n"
 
           if [[ "${{ env.BASE_REF }}" == "main" ]]; then
-            MESSAGE+="🚀 **RELEASE :**\n"
-            MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
+            MESSAGE+="🚀 **RELEASE :** ${{ env.FINAL_VERSION }}\n"
           else
             MESSAGE+="🔧 **Próxima versión SNAPSHOT:**\n"
             MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
