@@ -77,8 +77,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MESSAGE="📅 **Fecha:** $(date -u +"%Y/%m/%d %H:%M UTC")\n\n"
-          
+          # Obtener información del autor del PR y del actor que disparó el workflow
+          PR_AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
+          WORKFLOW_ACTOR="${{ github.actor }}"
+          CURRENT_DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
+
+          # Determinar quién está realizando la release
+          if [[ "$PR_AUTHOR" == "$WORKFLOW_ACTOR" ]]; then
+            RELEASE_BY="$PR_AUTHOR (autor del PR)"
+          else
+            RELEASE_BY="$WORKFLOW_ACTOR (ejecutor del workflow)"
+          fi
+
+          MESSAGE="👤 **Responsable de release:** $RELEASE_BY\n"
+          MESSAGE+="📅 **Fecha:** $CURRENT_DATE\n\n"
+
           if [[ "${{ env.BASE_REF }}" == "main" ]]; then
             MESSAGE+="🚀 **Versión de RELEASE que se generará:**\n"
             MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
