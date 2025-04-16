@@ -1,0 +1,83 @@
+name: Version Calculator
+
+on:
+  pull_request:
+    branches: [ "main", "develop" ]
+    types: [opened, edited, labeled, unlabeled, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write  # Permiso esencial para comentar en PRs
+
+jobs:
+  calculate-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 📖 Extract current version
+        id: version
+        run: |
+          CURRENT_VERSION=$(grep -m1 '<version>' pom.xml | sed -E 's/.*<version>(.*)<\/version>.*/\1/')
+          echo "CURRENT_VERSION=${CURRENT_VERSION}" >> $GITHUB_ENV
+          echo "BASE_REF=${{ github.base_ref }}" >> $GITHUB_ENV
+
+      - name: 🏷️ Detect PR labels
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Usa el token automático
+        run: |
+          LABEL=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -E 'feature|bugfix|hotfix|release' | head -n 1 || true)
+          echo "PR_LABEL=${LABEL}" >> $GITHUB_ENV
+
+      - name: 🧮 Calculate new version
+        id: calculate
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT_VERSION%-SNAPSHOT}"
+          
+          case "$PR_LABEL" in
+            "feature")
+              NEW_MINOR=$((MINOR + 1))
+              NEW_VERSION="$MAJOR.$NEW_MINOR.0"
+              ;;
+            "bugfix"|"hotfix")
+              NEW_PATCH=$((PATCH + 1))
+              NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+              ;;
+            *)
+              NEW_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+              ;;
+          esac
+
+          if [[ "$BASE_REF" == "develop" ]]; then
+            NEW_VERSION="${NEW_VERSION}-SNAPSHOT"
+            VERSION_TYPE="SNAPSHOT"
+          else
+            VERSION_TYPE="RELEASE"
+          fi
+
+          echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+          echo "VERSION_TYPE=${VERSION_TYPE}" >> $GITHUB_ENV
+
+      - name: 💬 Post version comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Asegúrate de usar este token
+        run: |
+          # Formatear mensaje sin usar \n (usar literales multilínea)
+          COMMENT=$(cat <<EOF
+          ## 📦 VERSION ${VERSION_TYPE}
+
+          - **Artifact:** ${GITHUB_REPOSITORY#*/}
+          - **Versión calculada:** ${NEW_VERSION}
+          - **Versión anterior:** ${CURRENT_VERSION}
+          - **Etiqueta:** ${PR_LABEL:-Ninguna}
+          - **Rama destino:** ${BASE_REF}
+
+          $([ "$VERSION_TYPE" == "RELEASE" ] && echo "_Esta versión se publicará oficialmente_" || echo "_Versión para desarrollo continuo_")
+          EOF
+          )
+
+          gh pr comment ${{ github.event.pull_request.number}} --body "$COMMENT"
