@@ -61,8 +61,23 @@ jobs:
             echo "✅ No hay cambios para commitear"
           fi
 
+      - name: 🛠️ Crear settings.xml para GitHub Packages
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
       - name: 🚀 Publicar en GitHub Packages
-        run: mvn deploy -DskipTests --settings settings.xml
+        run: mvn deploy -DskipTests --settings ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

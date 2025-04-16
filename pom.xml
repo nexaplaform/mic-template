@@ -18,7 +18,7 @@
 	</repositories>
 
 	<artifactId>mic-template</artifactId>
-	<version>0.0.1</version>
+	<version>0.0.3-SNAPSHOT</version>
 	<name>mic-template</name>
 	<description>Template for creation of microservices</description>
 
