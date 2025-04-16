@@ -1,4 +1,4 @@
-name: Generate release version
+name: Release Workflow
 
 on:
   push:
@@ -19,83 +19,61 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: ☕ Configurar Java
-        uses: actions/setup-java@v3
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: ⚙️ Crear settings.xml para Maven
+      - name: 📖 Extraer metadata del proyecto
+        id: metadata
         run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-          <settings>
-            <servers>
-              <server>
-                <id>github</id>
-                <username>github</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
+          # Extraer ARTIFACT_ID (mic-template)
+          ARTIFACT_ID=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='artifactId']/text()" pom.xml)
+          echo "ARTIFACT_ID=$ARTIFACT_ID" >> $GITHUB_ENV
+          
+          # Extraer VERSION (0.0.1-SNAPSHOT)
+          VERSION=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" pom.xml)
+          echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${VERSION%-SNAPSHOT}" >> $GITHUB_ENV
+          
+          echo "🔍 Artifact ID: $ARTIFACT_ID"
+          echo "🔍 Versión actual: $VERSION"
+          echo "🔖 Versión release: ${VERSION%-SNAPSHOT}"
 
-      - name: 📖 Leer versión actual
-        id: read_version
+      - name: 🏷️ Calcular próxima versión SNAPSHOT
+        id: next_version
         run: |
-          VERSION=$(grep -m1 '<revision>' pom.xml | sed -E 's/.*<revision>(.*)<\/revision>.*/\1/')
-          VERSION_NO_SNAPSHOT="${VERSION%-SNAPSHOT}"
-          echo "RELEASE_VERSION=$VERSION_NO_SNAPSHOT" >> $GITHUB_ENV
-          echo "🔖 Versión base: $VERSION → limpiada a: $VERSION_NO_SNAPSHOT"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ env.RELEASE_VERSION }}"
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_VERSION="$MAJOR.$MINOR.$NEXT_PATCH-SNAPSHOT"
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+          echo "🔁 Próxima versión SNAPSHOT: $NEXT_VERSION"
 
-      - name: 📝 Actualizar pom.xml a versión release (sin -SNAPSHOT)
+      - name: 📝 Actualizar a versión release
         run: |
-          sed -i "s|<revision>.*</revision>|<revision>${{ env.RELEASE_VERSION }}</revision>|" pom.xml
+          # Actualizar versión en pom.xml
+          sed -i "s|<version>${{ env.CURRENT_VERSION }}</version>|<version>${{ env.RELEASE_VERSION }}</version>|" pom.xml
+          
           git config user.name "github-actions[bot]"
           git config user.email "github-actions@github.com"
-          git commit -am "chore: prepare release v${{ env.RELEASE_VERSION }}"
+          git commit -am "chore: [release] ${{ env.ARTIFACT_ID }} v${{ env.RELEASE_VERSION }} [skip ci]"
           git push origin main
 
-      - name: 🚀 Publicar release
-        run: |
-          echo "🚀 Publicando release ${{ env.RELEASE_VERSION }}"
-          mvn deploy -B -Drevision=${{ env.RELEASE_VERSION }} -s ~/.m2/settings.xml
+      - name: 🚀 Publicar en GitHub Packages
+        run: mvn deploy -DskipTests --settings settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🏷️ Crear tag si no existe
+      - name: 🏷️ Crear tag de release
         run: |
-          git fetch --tags
-          if git rev-parse "v${{ env.RELEASE_VERSION }}" >/dev/null 2>&1; then
-            echo "🏷️ Tag v${{ env.RELEASE_VERSION }} ya existe."
-          else
-            echo "🏷️ Creando tag v${{ env.RELEASE_VERSION }}"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions@github.com"
-            git tag "v${{ env.RELEASE_VERSION }}"
-            git push origin "v${{ env.RELEASE_VERSION }}"
-          fi
+          git tag -a "v${{ env.RELEASE_VERSION }}" -m "Release ${{ env.ARTIFACT_ID }} v${{ env.RELEASE_VERSION }}"
+          git push origin "v${{ env.RELEASE_VERSION }}"
 
-      - name: 🔁 Crear PR hacia develop con nueva SNAPSHOT
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+      - name: 🔄 Preparar próxima versión SNAPSHOT
         run: |
-          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ env.RELEASE_VERSION }}"
-          PATCH=$((PATCH + 1))
-          NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+          git checkout -b "release/${{ env.RELEASE_VERSION }}"
+          sed -i "s|<version>${{ env.RELEASE_VERSION }}</version>|<version>${{ env.NEXT_VERSION }}</version>|" pom.xml
+          
+          git commit -am "chore: [snapshot] ${{ env.ARTIFACT_ID }} ${{ env.NEXT_VERSION }} [skip ci]"
+          git push origin "release/${{ env.RELEASE_VERSION }}"
 
-          echo "🔁 Próxima versión SNAPSHOT: $NEXT_VERSION"
-
-          git fetch origin main
-          git checkout -b sync-develop origin/main
-
-          sed -i "s|<revision>.*</revision>|<revision>$NEXT_VERSION</revision>|" pom.xml
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions@github.com"
-          git commit -am "chore: bump version to $NEXT_VERSION [sync from release]"
-          git push -f origin sync-develop
-
-          gh pr create -B develop -H sync-develop \
-            --title "chore: bump version to $NEXT_VERSION" \
-            --body "🔁 Sincronización automática desde release v${{ env.RELEASE_VERSION }} con la próxima versión \`$NEXT_VERSION\` para continuar en develop."
+          gh pr create \
+            --base develop \
+            --head "release/${{ env.RELEASE_VERSION }}" \
+            --title "chore: Bump ${{ env.ARTIFACT_ID }} to ${{ env.NEXT_VERSION }}" \
+            --body "Actualización automática post-release:\n\n- Artifact: \`${{ env.ARTIFACT_ID }}\`\n- Versión anterior: \`${{ env.RELEASE_VERSION }}\`\n- Nueva versión: \`${{ env.NEXT_VERSION }\`"
