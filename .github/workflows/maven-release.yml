@@ -87,10 +87,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🏷️ Crear tag de release
+      - name: 🏷️ Crear tag de release si no existe
         run: |
-          git tag -a "v${{ env.RELEASE_VERSION }}" -m "Release ${{ env.ARTIFACT_ID }} v${{ env.RELEASE_VERSION }}"
-          git push origin "v${{ env.RELEASE_VERSION }}"
+          if git rev-parse "v${{ env.RELEASE_VERSION }}" >/dev/null 2>&1; then
+            echo "✅ Tag v${{ env.RELEASE_VERSION }} ya existe. Nada que hacer."
+          else
+            git tag -a "v${{ env.RELEASE_VERSION }}" -m "Release ${{ env.ARTIFACT_ID }} v${{ env.RELEASE_VERSION }}"
+            git push origin "v${{ env.RELEASE_VERSION }}"
+          fi
 
       - name: 🔄 Preparar próxima versión SNAPSHOT
         env:
