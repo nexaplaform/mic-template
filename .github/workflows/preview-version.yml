@@ -84,18 +84,17 @@ jobs:
 
           # Determinar quién está realizando la release
           if [[ "$PR_AUTHOR" == "$WORKFLOW_ACTOR" ]]; then
-            RELEASE_BY="$PR_AUTHOR (autor del PR)"
+            RELEASE_BY="$PR_AUTHOR"
           else
             RELEASE_BY="$WORKFLOW_ACTOR (ejecutor del workflow)"
           fi
 
-          MESSAGE="👤 **Responsable de release:** $RELEASE_BY\n"
+          MESSAGE="👤 **Release:** $RELEASE_BY\n"
           MESSAGE+="📅 **Fecha:** $CURRENT_DATE\n\n"
 
           if [[ "${{ env.BASE_REF }}" == "main" ]]; then
-            MESSAGE+="🚀 **Versión de RELEASE que se generará:**\n"
+            MESSAGE+="🚀 **RELEASE :**
             MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
-            MESSAGE+="ℹ️ Esta será la versión oficial publicada en GitHub Packages."
           else
             MESSAGE+="🔧 **Próxima versión SNAPSHOT:**\n"
             MESSAGE+="\`${{ env.FINAL_VERSION }}\`\n\n"
