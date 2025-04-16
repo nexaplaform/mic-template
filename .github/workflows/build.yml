@@ -40,6 +40,9 @@ jobs:
 
       - name: Build y análisis Sonar
         run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -s ~/.m2/settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: 📦 Cache SonarQube packages
         uses: actions/cache@v4
