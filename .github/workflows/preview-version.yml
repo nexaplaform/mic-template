@@ -1,4 +1,4 @@
-name: Preview SNAPSHOT version
+name: Preview Release Version
 
 on:
   pull_request:
@@ -41,7 +41,7 @@ jobs:
             echo "🔖 Etiqueta detectada: $LABEL"
           fi
 
-      - name: 🧮 Calcular próxima versión
+      - name: 🧮 Calcular versiones (SNAPSHOT y Release)
         id: calc_version
         run: |
           BASE="${{ env.VERSION }}"
@@ -51,36 +51,45 @@ jobs:
 
           if [[ "$LABEL" == "feature" ]]; then
             MINOR=$((MINOR + 1))
+            PATCH=0
           elif [[ "$LABEL" =~ ^(bugfix|fix|hotfix)$ ]]; then
             PATCH=$((PATCH + 1))
           fi
 
           if [[ -z "$LABEL" ]]; then
-            NEXT_VERSION="$BASE"
+            NEXT_SNAPSHOT="$BASE"
+            NEXT_RELEASE="$BASE_CLEAN"
           else
-            NEXT_VERSION="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+            NEXT_SNAPSHOT="$MAJOR.$MINOR.$PATCH-SNAPSHOT"
+            NEXT_RELEASE="$MAJOR.$MINOR.$PATCH"
           fi
 
-          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+          echo "NEXT_SNAPSHOT=$NEXT_SNAPSHOT" >> $GITHUB_ENV
+          echo "NEXT_RELEASE=$NEXT_RELEASE" >> $GITHUB_ENV
 
           echo ""
-          echo "🔮✨ Previsualización de la versión que se aplicará si se mergea:"
-          echo "   📦 Versión actual:  $BASE"
-          echo "   🔖 Etiqueta:        ${LABEL:-ninguna}"
-          echo "   🚀 Próxima versión: $NEXT_VERSION"
+          echo "🔮✨ Previsualización de versiones que se aplicarían si se mergea:"
+          echo "   📦 Versión actual:       $BASE"
+          echo "   🔖 Etiqueta:             ${LABEL:-ninguna}"
+          echo "   🚀 Próxima versión SNAPSHOT: $NEXT_SNAPSHOT"
+          echo "   🏷️  Versión de Release:      $NEXT_RELEASE"
           echo ""
 
-      - name: 💬 Comentar en la PR con autor, fecha y versión
+      - name: 💬 Comentar en la PR con autor, fecha y versiones
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ env.NEXT_VERSION }}"
           AUTHOR=$(gh pr view ${{ github.event.pull_request.number }} --json author --jq '.author.login')
           DATE=$(date -u +"%Y/%m/%d %H:%M UTC")
 
           echo "👤 $AUTHOR" > comment.txt
           echo "📅 $DATE" >> comment.txt
-          echo "📦 Próxima versión a publicar si se mergea: \`$VERSION\`" >> comment.txt
+          echo "" >> comment.txt
+          echo "📦 Versiones que se generarían al mergear:" >> comment.txt
+          echo "- SNAPSHOT: \`${{ env.NEXT_SNAPSHOT }}\`" >> comment.txt
+          echo "- Release:  \`${{ env.NEXT_RELEASE }}\`" >> comment.txt
+          echo "" >> comment.txt
+          echo "ℹ️ La versión SNAPSHOT se usará durante desarrollo y la Release para la publicación final." >> comment.txt
 
           echo "💬 Comentario generado:"
           cat comment.txt
