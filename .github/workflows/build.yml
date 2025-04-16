@@ -25,7 +25,7 @@ jobs:
           java-version: 21
           distribution: 'temurin'
 
-      - name: 🔐 Configurar autenticación Maven para GitHub Packages
+      - name: 🔐 Configurar autenticación Maven
         run: |
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml <<EOF
@@ -34,12 +34,11 @@ jobs:
               <server>
                 <id>github</id>
                 <username>${{ github.actor }}</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
+                <password>${{ secrets.NEXA_PLAFORM_PACKAGE_TOKEN }}</password>
               </server>
             </servers>
           </settings>
           EOF
-      
 
       - name: 📦 Cache Maven packages
         uses: actions/cache@v4
@@ -63,4 +62,5 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
         env:
+          GITHUB_TOKEN: ${{ secrets.GIL_PAT }}  # Para acceso a paquetes
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
