@@ -19,7 +19,7 @@
 
 
 	<artifactId>mic-template</artifactId>
-	<version>0.0.3-SNAPSHOT</version>
+	<version>0.0.3</version>
 	<name>mic-template</name>
 	<description>Template for creation of microservices</description>
 
