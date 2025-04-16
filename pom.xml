@@ -32,7 +32,6 @@
 	</distributionManagement>
 
 	<properties>
-		<java.version>21</java.version>
 		<sonar.organization>nexaplaform</sonar.organization>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
 	</properties>
