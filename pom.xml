@@ -18,7 +18,7 @@
 	</repositories>
 
 	<artifactId>mic-template</artifactId>
-	<version>${revision}</version>
+	<version>0.0.1-SNAPSHOT</version>
 	<name>mic-template</name>
 	<description>Template for creation of microservices</description>
 
@@ -31,7 +31,6 @@
 	</distributionManagement>
 
 	<properties>
-		<revision>0.0.1-SNAPSHOT</revision>
 		<java.version>21</java.version>
 		<sonar.organization>nexaplaform</sonar.organization>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
