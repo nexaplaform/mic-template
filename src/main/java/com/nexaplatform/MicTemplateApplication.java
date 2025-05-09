@@ -9,5 +9,4 @@ public class MicTemplateApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(MicTemplateApplication.class, args);
 	}
-
 }
